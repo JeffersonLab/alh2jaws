@@ -28,7 +28,9 @@
         "illuminate/http": "^11.0",
         "intonate/tinker-zero": "^1.2",
         "laravel-zero/framework": "^11.0.0",
-        "yajra/laravel-oci8": "dev-laravel-zero"
+        "league/oauth2-client": "^2.7",
+        "yajra/laravel-oci8": "dev-laravel-zero",
+        "ext-curl": "*"
     },
     "require-dev": {
         "laravel/pint": "^1.15.2",
