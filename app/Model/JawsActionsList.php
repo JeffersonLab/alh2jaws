@@ -11,7 +11,7 @@ class JawsActionsList
     }
 
     function url(){
-        return config('settings.jaws_api_base') . '/list-alarms';
+        return config('settings.jaws_api_base') . '/list-actions';
     }
 
     protected function getActions() : Collection{
@@ -26,5 +26,9 @@ class JawsActionsList
 
     public function actions(): Collection{
         return $this->getActions();
+    }
+
+    public function distinctActionNames(){
+        return $this->actions()->pluck('name')->unique()->sort();
     }
 }
