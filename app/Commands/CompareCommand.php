@@ -2,7 +2,9 @@
 
 namespace App\Commands;
 
+use App\Model\AlhActionsList;
 use App\Model\AlhAlarmsList;
+use App\Model\JawsActionsList;
 use App\Model\JawsAlarmsList;
 use App\Service\Comparison;
 use Illuminate\Console\Scheduling\Schedule;
@@ -18,7 +20,7 @@ class CompareCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'compare ';
+    protected $signature = 'compare';
 
     /**
      * The description of the command.
@@ -32,29 +34,53 @@ class CompareCommand extends Command
      */
     public function handle(): void
     {
-        $l = new AlhAlarmsList();
-        $alh = $l->alarms();
-        $l = new JawsAlarmsList();
-        $jaws = $l->alarms();
-        $c = new Comparison($alh, $jaws);
+        $alh = new AlhAlarmsList();
+        $alhActions = new AlhActionsList();
+        $jaws = new JawsAlarmsList();
+        $jawsActions = new JawsActionsList();
 
-        $this->line("Not in JAWS: ". $c->notInJaws()->count());
+        //dd($alh->distinctActionNames()->all());
+
+        $c = new Comparison($alh->alarms(), $jaws->alarms());
+
+        $this->line('---- ALH Alarm Actions Without Jaws Match ----');
+        foreach ($alh->distinctActionNames() as $alhAction){
+            if ($jawsActions->distinctActionNames()->doesntContain($alhAction)){
+                $this->line("$alhAction");
+            }
+        }
+
+        $this->line('---- ALH Alarm Actions Without ALH Match ----');
+        foreach ($alh->distinctActionNames() as $alhAction){
+            if ($alhActions->distinctActionNames()->doesntContain($alhAction)){
+                $this->line("$alhAction");
+            }
+        }
+
+        $this->line('---- JAWS Actions Without Match ----');
+        foreach ($jawsActions->distinctActionNames() as $jawsAction){
+            if ($alh->distinctActionNames()->doesntContain($jawsAction)){
+                $this->line("$jawsAction");
+            }
+        }
+
+        $this->line("Alarms Not in JAWS: ". $c->notInJaws()->count());
         if ($this->output->isVerbose()){
             foreach ($c->notInJaws()->keys() as $key){
                 $this->line("Missing from Jaws: ".$key);
             }
         }
-        $this->line("Not in ALH: ". $c->notInAlh()->count());
+        $this->line("Alarms Not in ALH: ". $c->notInAlh()->count());
         if ($this->output->isVerbose()){
             foreach ($c->notInAlh()->keys() as $key){
                 $this->line("Missing from Alh: ".$key);
             }
         }
-//        foreach ($c->differences() as $key => $items){
-//            foreach ($items as $item){
-//                $this->line($key . ' ' . $item);
-//            }
-//        }
+        foreach ($c->differences() as $key => $items){
+            foreach ($items as $item){
+                $this->line($key . ' ' . $item);
+            }
+        }
 
     }
 
