@@ -33,22 +33,25 @@ An example item from the array looks like:
 
 ### ALH Alarm Defintions
 
-Definitions from ALH can be found in the set of files located at /cs/prohome/apps/m/makeALHConfig/4-1/src/bin/JAWS/.
+Definitions from ALH can be found in the set of files located at /cs/prohome/apps/m/makeALHConfig/4-1/src/bin/JAWS/alarms.
 They are json-ish, but will require special parsing. The example that corresponds to JAWS item above looks like:
 
 ```text
 0L02-7 GMES={
-      "class": "GMES", 
-      "location": ["Injector"], 
-      "maskedby": null, 
-      "producer": {
-         "org.jlab.jaws.entity.EPICSProducer": {
-            "pv": "R027GMES"
-         }
-      }, 
-      "screencommand": null
-      }
+  "action": "GMES", 
+  "location": ["Injector"], 
+  "maskedby": null, 
+  "source": {"org.jlab.jaws.entity.EPICSSource": {"pv": "R027GMES"}},
+  "pv": "R027GMES",
+  "screencommand": null
+}
 ```
+
+### Jaws API
+
+See the source code at https://github.com/JeffersonLab/jaws-web/tree/main/src/main/java/org/jlab/jaws/presentation/ajax
+
+
 
 
 
