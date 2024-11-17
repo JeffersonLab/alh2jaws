@@ -23,5 +23,20 @@ return [
     'jaws_api_base' => env('JAWS_API_BASE', 'https://ace.jlab.org/jaws/ajax'),
 
 
+    /*
+    |--------------------------------------------------------------------------
+    | Keycloak access token parameters
+    |--------------------------------------------------------------------------
+    |
+    |
+    |
+    */
+    'client_id' => 'alh-jaws-connect',
+    'access_token_url' => 'https://ace.jlab.org/auth/realms/ace/protocol/openid-connect/token',
+    'username' => env('JAWS_WEB_USERNAME'),
+    'password' => env('JAWS_WEB_PASSWORD'),
+
+
+
 
 ];
