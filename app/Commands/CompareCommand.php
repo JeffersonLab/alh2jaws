@@ -39,46 +39,54 @@ class CompareCommand extends Command
         $jaws = new JawsAlarmsList();
         $jawsActions = new JawsActionsList();
 
-        //dd($alh->distinctActionNames()->all());
-
         $c = new Comparison($alh->alarms(), $jaws->alarms());
 
-        $this->line('---- ALH Alarm Actions Without Jaws Match ----');
-        foreach ($alh->distinctActionNames() as $alhAction){
-            if ($jawsActions->distinctActionNames()->doesntContain($alhAction)){
-                $this->line("$alhAction");
+        $this->line('ALH Actions With no Jaws Action Match: ' . $this->countAlhWithoutJawsMatch($jawsActions, $alh));
+        if ($this->output->isVerbose()) {
+            foreach ($alh->distinctActionNames() as $alhAction) {
+                if ($jawsActions->distinctActionNames()->doesntContain($alhAction)) {
+                    $this->line("$alhAction");
+                }
             }
         }
 
-        $this->line('---- ALH Alarm Actions Without ALH Match ----');
-        foreach ($alh->distinctActionNames() as $alhAction){
-            if ($alhActions->distinctActionNames()->doesntContain($alhAction)){
-                $this->line("$alhAction");
+        $this->line('ALH Actions With no ALH Alarm Match: ' . $this->countAlhWithoutAlhMatch($alhActions, $alh));
+        if ($this->output->isVerbose()) {
+            foreach ($alh->distinctActionNames() as $alhAction) {
+                if ($alhActions->distinctActionNames()->doesntContain($alhAction)) {
+                    $this->line("$alhAction");
+                }
             }
         }
 
-        $this->line('---- JAWS Actions Without Match ----');
-        foreach ($jawsActions->distinctActionNames() as $jawsAction){
-            if ($alh->distinctActionNames()->doesntContain($jawsAction)){
-                $this->line("$jawsAction");
+        $this->line('JAWS Actions With no ALH Alarm Match: ' . $this->countJawsWithoutMatch($jawsActions, $alh));
+        if ($this->output->isVerbose()) {
+            foreach ($jawsActions->distinctActionNames() as $jawsAction) {
+                if ($alh->distinctActionNames()->doesntContain($jawsAction)) {
+                    $this->line("$jawsAction");
+                }
             }
         }
 
-        $this->line("Alarms Not in JAWS: ". $c->notInJaws()->count());
+
+        $this->line("ALH Alarms Not in JAWS: ". $c->notInJaws()->count());
         if ($this->output->isVerbose()){
             foreach ($c->notInJaws()->keys() as $key){
                 $this->line("Missing from Jaws: ".$key);
             }
         }
-        $this->line("Alarms Not in ALH: ". $c->notInAlh()->count());
+        $this->line("JAWS Alarms Not in ALH: ". $c->notInAlh()->count());
         if ($this->output->isVerbose()){
             foreach ($c->notInAlh()->keys() as $key){
                 $this->line("Missing from Alh: ".$key);
             }
         }
-        foreach ($c->differences() as $key => $items){
-            foreach ($items as $item){
-                $this->line($key . ' ' . $item);
+        $this->line("Alarm Attribute Mismatches : ". $c->differences()->count());
+        if ($this->output->isVerbose()){
+            foreach ($c->differences() as $key => $items) {
+                foreach ($items as $item) {
+                    $this->line($key . ' ' . $item);
+                }
             }
         }
 
@@ -91,4 +99,37 @@ class CompareCommand extends Command
     {
         // $schedule->command(static::class)->everyMinute();
     }
+
+
+
+    public function countJawsWithoutMatch($jawsActions, $alh){
+        $count = 0;
+        foreach ($jawsActions->distinctActionNames() as $jawsAction) {
+            if ($alh->distinctActionNames()->doesntContain($jawsAction)) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    public function countAlhWithoutAlhMatch($alhActions, $alh){
+        $count = 0;
+        foreach ($alh->distinctActionNames() as $alhAction){
+            if ($alhActions->distinctActionNames()->doesntContain($alhAction)){
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    protected function countAlhWithoutJawsMatch($jawsActions, $alh){
+        $count = 0;
+        foreach ($alh->distinctActionNames() as $alhAction) {
+            if ($jawsActions->distinctActionNames()->doesntContain($alhAction)) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
 }
