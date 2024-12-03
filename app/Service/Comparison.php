@@ -7,6 +7,17 @@ use Illuminate\Support\Collection;
 class Comparison
 {
 
+    // Map of corrections for the names used in Michele's files that must be
+    // transformed to match the database. (ex: "Hall A" => 'HallA')
+    const LOCATION_CORRECTIONS = [
+        'Hall A'  => 'HallA',
+        'Hall B'  => 'HallB',
+        'Hall C'  => 'HallC',
+        'Hall D'  => 'HallD',
+        'ACC'     => 'CEBAF',
+        'FEL'     => 'LERF',
+    ];
+
     /**
      *  Collection keyed by alarm name.
      *  Each key has an array of message strings.
@@ -20,17 +31,24 @@ class Comparison
         $this->differences = new Collection();
     }
 
+    public static function correctedLocationName($name): string{
+        if (array_key_exists($name, self::LOCATION_CORRECTIONS)){
+            return self::LOCATION_CORRECTIONS[$name];
+        }
+        return $name;
+    }
+
     public function notInJaws()
     {
-        return $this->alhAlarms->filter(function ($item) {
-            return !$this->jawsAlarms->get($item->name);
+        return $this->alhAlarms->filter(function ($item, $key) {
+            return !$this->jawsAlarms->has($key);
         });
     }
 
     public function notInAlh()
     {
-        return $this->jawsAlarms->filter(function ($item) {
-            return !$this->alhAlarms->get($item->name);
+        return $this->jawsAlarms->filter(function ($item, $key) {
+            return ! $this->alhAlarms->has($key);
         });
     }
 
@@ -49,52 +67,88 @@ class Comparison
         return $this->differences;
     }
 
+    public function differs($jawsItem, $alhItem): bool{
+        return ! $this->matches($jawsItem, $alhItem);
+    }
+
+    public function matches($jawsItem, $alhItem): bool{
+        return $this->compareAction($jawsItem, $alhItem)
+            && $this->compareName($jawsItem, $alhItem)
+            && $this->compareScreenCommands($jawsItem, $alhItem)
+            && $this->compareManagedBy($jawsItem, $alhItem)
+            && $this->compareMaskedBy($jawsItem, $alhItem)
+            && $this->compareLocations($jawsItem, $alhItem);
+    }
+
     protected function compare($jawsItem, $alhItem)
     {
         // Our compare functions will be named after the key as it
         // exists in JAWS.
-//        $this->compareAction($jawsItem, $alhItem);
-//        $this->comparePvs($jawsItem, $alhItem);
-//        $this->compareScreenCommands($jawsItem, $alhItem);
-//        $this->compareMaskedBy($jawsItem, $alhItem);
+        $this->compareAction($jawsItem, $alhItem);
+        $this->compareName($jawsItem, $alhItem);
+        $this->compareScreenCommands($jawsItem, $alhItem);
+        $this->compareManagedBy($jawsItem, $alhItem);
+        $this->compareMaskedBy($jawsItem, $alhItem);
         $this->compareLocations($jawsItem, $alhItem);
     }
 
     /**
-     * Identify differences between Jaws Action match the ALH Class?
+     * Identify differences between Jaws Action match the ALH Action
+     * Returns false on mismatch
      */
-    protected function compareAction($jawsItem, $alhItem)
+    protected function compareAction($jawsItem, $alhItem) : bool
     {
-        if ($jawsItem->action->name != $alhItem->class){
+        if ($jawsItem->action->name != $alhItem->action){
             $key = "Action Mismatch: ". $jawsItem->name . ': ';
-            $message = "{$jawsItem->action->name} / {$alhItem->class}";
+            $message = "{$jawsItem->action->name} / {$alhItem->action}";
             $this->pushDifference($key, $message);
+            return false;
         }
+        return true;
     }
 
-    protected function comparePvs($jawsItem, $alhItem)
+    /**
+     * Identify differences between Jaws Action match the ALH Action
+     * Returns false on mismatch
+     */
+    protected function compareName($jawsItem, $alhItem) : bool
+    {
+        if ($jawsItem->name != $alhItem->name){
+            $key = "Name Mismatch: ". $jawsItem->name . ': ';
+            $message = "{$jawsItem->name} / {$alhItem->name}";
+            $this->pushDifference($key, $message);
+            return false;
+        }
+        return true;
+    }
+
+    protected function comparePvs($jawsItem, $alhItem): bool
     {
         $jawsPv = $jawsItem->pv ?? null;
-        $alhPv = $this->alhPv($alhItem);
+        $alhPv = $alhItem->pv;
         if ($jawsPv != $alhPv){
             $key = "PV Mismatch: ". $jawsItem->name . ': ';
             $message = "{$jawsPv} / {$alhPv}";
             $this->pushDifference($key, $message);
+            return false;
         }
+        return true;
     }
 
-    protected function compareScreenCommands($jawsItem, $alhItem)
+    protected function compareScreenCommands($jawsItem, $alhItem): bool
     {
         $jawsVal = $jawsItem->screenCommand ?? null;
-        $alhVal = $alhItem->screenCommand ?? null;
+        $alhVal = $alhItem->screencommand ?? null;
         if ($jawsVal != $alhVal){
             $key = "Screen Command Mismatch: ". $jawsItem->name . ': ';
             $message = "{$jawsVal} / {$alhVal}";
             $this->pushDifference($key, $message);
+            return false;
         }
+        return true;
     }
 
-    protected function compareMaskedBy($jawsItem, $alhItem)
+    protected function compareMaskedBy($jawsItem, $alhItem): bool
     {
         $jawsVal = $jawsItem->maskedBy ?? null;
         $alhVal = $alhItem->maskedby ?? null;  //alh does not use camelcase here
@@ -102,35 +156,45 @@ class Comparison
             $key = "MaskedBy Mismatch: ". $jawsItem->name . ': ';
             $message = "{$jawsVal} / {$alhVal}";
             $this->pushDifference($key, $message);
+            return false;
         }
+        return true;
     }
 
-    protected function compareLocations($jawsItem, $alhItem)
+    protected function compareManagedBy($jawsItem, $alhItem): bool
     {
-        $jawsVal = collect($jawsItem->locations)->pluck('name');
-        var_dump($jawsVal);
+        $jawsVal = $jawsItem->managedBy ?? null;
+        $alhVal = $alhItem->managedby ?? null;  //alh does not use camelcase here
+        if ($jawsVal != $alhVal){
+            $key = "ManagedBy Mismatch: ". $jawsItem->name . ': ';
+            $message = "{$jawsVal} / {$alhVal}";
+            $this->pushDifference($key, $message);
+
+            return false;
+        }
+        return true;
+    }
+
+
+    protected function compareLocations($jawsItem, $alhItem) : bool
+    {
+        $jawsVal = collect($jawsItem->locations)->pluck('name')->sort();
+
         $alhVal = collect($alhItem->location);  //alh is in fact singular
-        var_dump($alhVal);
-//        if ($jawsVal != $alhVal){
-//            $key = "MaskedBy Mismatch: ". $jawsItem->name . ': ';
-//            $message = "{$jawsVal} / {$alhVal}";
-//            $this->pushDifference($key, $message);
-//        }
-    }
+        $alhVal = $alhVal->map(function($item){
+           return static::correctedLocationName($item);
+        })->sort();
 
-
-    protected function alhPv($alhItem)
-    {
-        if (isset($alhItem->producer)) {
-            $key = "org.jlab.jaws.entity.EPICSProducer";
-            if (isset($alhItem->producer->{$key})) {
-                if (isset($alhItem->producer->{$key}->pv)) {
-                    return $alhItem->producer->{$key}->pv;
-                }
-            }
+        if (array_values($jawsVal->toArray()) != array_values($alhVal->toArray())){
+            $key = "Location Mismatch: ". $jawsItem->name . ': ';
+            $message = implode(',',$jawsVal->toArray()) .' / ' . implode(',', $alhVal->toArray());
+            $this->pushDifference($key, $message);
+            return false;
         }
-        return null;
+        return true;
     }
+
+
 
 
     protected function pushDifference($key, $message){
