@@ -56,6 +56,7 @@ class JawsUpdater
         'NDX' => '32',
     ];
 
+
     //Stores the keycloak Access Token
     protected $accessToken;
     // Collection of actions defined in Jaws
@@ -120,8 +121,17 @@ class JawsUpdater
     }
 
     public function locationId(string $name){
-        $location = (object) $this->locations->where('name',$name)->first();
-        return isset($location->id) ? $location->id : null;
+        $location = (object) $this->locations
+            ->where('name',$this->correctedLocationName($name))
+            ->first();
+        if (! isset($location->id)){
+            throw new Exception("Invalid LocationName $name");
+        }
+        return $location->id;
+    }
+
+    protected function correctedLocationName($name): string{
+        return Comparison::correctedLocationName($name);
     }
 
     public function locationIdArray(array $names){
@@ -165,13 +175,33 @@ class JawsUpdater
             'name' => $alarm->name,
             'pv' => $alarm->pv,
             'actionId' => $this->actionId($alarm->action),
-            'locationId[]' => implode(',', $this->locationIdArray($alarm->location)),
+            'locationId' => $this->locationIdArray($alarm->location),
             'screenCommand' => $alarm->screencommand,
             'managedBy' => $alarm->managedby,
             'maskedBy' => $alarm->maskedby,
         ]);
     }
 
+
+    public function editAlarm(object $alarm){
+        // The incoming alarm is a jawsAlarm retrieved from list-alarms endpoint
+        // where some values have been updated.
+        $this->executeCommand('edit-alarm', [
+            'alarmId' => $alarm->id,
+            'name' => $alarm->name,
+            'actionId' => $this->actionId($alarm->action),
+            'locationId' => $this->locationIdArray($alarm->location),
+            'device' => $alarm->device ?? null,
+            'alias' => $alarm->alias ?? null,
+            'screenCommand' => $alarm->screenCommand ?? '',
+            'managedBy' => $alarm->managedBy,
+            'maskedBy' => $alarm->maskedBy ?? null,
+            'pv' => $alarm->pv,
+            'syncRuleId' => $alarm->syncRuleId ?? null,
+            'syncElementId' => $alarm->syncElementId ?? null,
+            'syncElementName' => $alarm->syncElementName ?? null,
+        ]);
+    }
 
     /**
      * Executes the remote remove-alarm action
@@ -184,10 +214,12 @@ class JawsUpdater
     }
 
 
-    protected function httpQuery(array $params){
+    public function httpQuery(array $params){
         $query = http_build_query($params);
-        // Below we unescape the [] that the locationId parameter requires
-        return str_replace('%5B0%5D','[]', $query);
+        //Below we unescape the [] that the locationId parameter requires
+        //We also need to remove the array indexes that PHP might have inserted.
+        //return str_replace('%5B%5D','[]', $query);
+        return preg_replace('/locationId%5B[\d]+%5D/','locationId[]',$query);
     }
 
     /**
@@ -197,28 +229,33 @@ class JawsUpdater
      */
     protected function executeCommand(string $command, array $params)
     {
-//        dd($params);
+
+        //dd($params);
         $commandURL = sprintf('%s/%s', Config::get('settings.jaws_api_base'), $command);
+        $postQuery = $this->httpQuery($params);
+
         Config::set('app.debug',true);
         if (Config::get('app.debug') || true) {
             $cmd = sprintf("%s -s -S -X POST --data '%s' -H '%s' %s 2>&1",
-                Config::get('hco.curl'), $this->httpQuery($params),
+                Config::get('hco.curl'), $postQuery,
                 $this->authorizationBearer(), $commandURL);
             //dd('Executing curl equivalent of command ', [$cmd]);
-            var_dump($cmd);
+            //var_dump($cmd);
 
         }
+        //dd($cmd);
+        //var_dump($postQuery);
 
-        //dd($commandURL);
         $ch = curl_init($commandURL);
 
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postQuery);
         //curl_setopt($ch, CURLOPT_COOKIEFILE, $this->cookieJar);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [$this->authorizationBearer()]);
 
         $returned = curl_exec($ch);
+
 
         if ($returned === false) {
             throw new Exception('curl_exec returned FALSE');
